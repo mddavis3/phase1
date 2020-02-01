@@ -28,12 +28,20 @@ int debugflag = 1;
 proc_struct ProcTable[MAXPROC];
 
 /* Process lists  */
+/* ReadyList is a queue of queues of process pointers sorted by priority (1-5) 
+   BlockedList is a queue of process pointers %%% maybe implement later %%%
+*/
+proc_ptr ReadyList[5][MAXPROC];
+//proc_ptr BlockedList[MAXPROC];
 
 /* current process ID */
 proc_ptr Current;
 
 /* the next pid to be assigned */
 unsigned int next_pid = SENTINELPID;
+
+/* empty proc_struct */
+proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 
 /* -------------------------- Functions ----------------------------------- */
@@ -51,19 +59,34 @@ void startup()
    int result; /* value returned by call to fork1() */
 
    /* initialize the process table */
+   for( i = 0; i < MAXPROC; i++)
+   {
+      ProcTable[i] = DummyStruct;
+   }
 
    /* Initialize the Ready list, etc. */
    if (DEBUG && debugflag)
       console("startup(): initializing the Ready & Blocked lists\n");
-   ReadyList = NULL;
+   for ( i = 0; i < 5; i++)
+   {
+      for ( int j = 0; j < 50; j++)
+      {
+         ReadyList[i][j] = NULL;
+      }
+   }
+   /*
+   for ( i = 0; i < MAXPROC; i++)
+   {
+      BlockedList[i] = NULL;
+   }
+   */
 
    /* Initialize the clock interrupt handler */
 
    /* startup a sentinel process */
    if (DEBUG && debugflag)
        console("startup(): calling fork1() for sentinel\n");
-   result = fork1("sentinel", sentinel, NULL, USLOSS_MIN_STACK,
-                   SENTINELPRIORITY);
+   result = fork1("sentinel", sentinel, NULL, USLOSS_MIN_STACK, SENTINELPRIORITY);
    if (result < 0) {
       if (DEBUG && debugflag)
          console("startup(): fork1 of sentinel returned error, halting...\n");
@@ -110,7 +133,10 @@ void finish()
    Side Effects - ReadyList is changed, ProcTable is changed, Current
                   process information changed
    ------------------------------------------------------------------------ */
-int fork1(char *name, int (*f)(void *), void *arg, int stacksize, int priority)
+//fork1(char *name, int (*f)(void *), void *arg, int stacksize, int priority)
+//Above is the original skeleton.c function definition
+//Below is a modified definition included in phase1.h in usloss/build/include   
+int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
 {
    int proc_slot;
 
@@ -273,3 +299,13 @@ void disableInterrupts()
     /* We ARE in kernel mode */
     psr_set( psr_get() & ~PSR_CURRENT_INT );
 } /* disableInterrupts */
+
+/*
+ * Enable the interrupts.
+ * Empty method to try to get the testcases running.
+ * Implement later.
+ */
+static void enableInterrupts()
+{
+   //Add stuff later bruhs
+}
