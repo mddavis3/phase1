@@ -82,6 +82,7 @@ void startup()
    */
 
    /* Initialize the clock interrupt handler */
+   
 
    /* startup a sentinel process */
    if (DEBUG && debugflag)
@@ -89,7 +90,7 @@ void startup()
    result = fork1("sentinel", sentinel, NULL, USLOSS_MIN_STACK, SENTINELPRIORITY);
    if (result < 0) {
       if (DEBUG && debugflag)
-         console("startup(): fork1 of sentinel returned error, halting...\n");
+         console("startup(): fork1 of sentinel returned error, halting...\nResult = %d\n", result);
       halt(1);
    }
   
@@ -144,18 +145,44 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
       console("fork1(): creating process %s\n", name);
 
    /* test if in kernel mode; halt if in user mode */
+   if (psr_get() == 0)
+   {
+      halt(1);
+   }
 
    /* Return if stack size is too small */
+   if (stacksize < USLOSS_MIN_STACK)
+   {
+      return (-2);
+   }
+
+   //need to malloc stack here using the stacksize
+   //maybe come up with a better name for the pointer
+   char* stackPtr = (char*) malloc (stacksize * sizeof(int));
+
 
    /* find an empty slot in the process table */
+   proc_slot = 0;
+   console("fork1(): made it to finding empty slot loop...\n");
+   while (ProcTable[proc_slot].pid != NULL)
+   {
+      proc_slot++;
+      if (proc_slot == MAXPROC)
+      {
+         return -1;
+      }
+   }
 
    /* fill-in entry in process table */
+   console("made it to filling in entry in process table...\n");
    if ( strlen(name) >= (MAXNAME - 1) ) {
       console("fork1(): Process name is too long.  Halting...\n");
       halt(1);
    }
    strcpy(ProcTable[proc_slot].name, name);
+
    ProcTable[proc_slot].start_func = f;
+
    if ( arg == NULL )
       ProcTable[proc_slot].start_arg[0] = '\0';
    else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -164,10 +191,24 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    }
    else
       strcpy(ProcTable[proc_slot].start_arg, arg);
+   
+   //added stackPtr to the stack entry of the PCB
+   ProcTable[proc_slot].stack = stackPtr;
+
+   //add stacksize to the stacksize entry of the PCB
+   ProcTable[proc_slot].stacksize = stacksize;
+
+   //add priority level to the priority entry of the PCB
+
+   /*
+   *make sure that every entry in the PCB is filled out before context_init is reached
+   * 
+   */
 
    /* Initialize context for this process, but use launch function pointer for
     * the initial value of the process's program counter (PC)
     */
+   console("Sup yall, context init...\n");
    context_init(&(ProcTable[proc_slot].state), psr_get(),
                 ProcTable[proc_slot].stack, 
                 ProcTable[proc_slot].stacksize, launch);
