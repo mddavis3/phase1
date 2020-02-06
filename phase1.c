@@ -43,6 +43,9 @@ unsigned int next_pid = SENTINELPID;
 /* empty proc_struct */
 proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
+/* define the variable for the interrupt vector declared by USLOSS */
+//void(*int_vec[NUM_INTS])(int dev, void * unit);
+
 
 /* -------------------------- Functions ----------------------------------- */
 /* ------------------------------------------------------------------------
@@ -82,6 +85,7 @@ void startup()
    */
 
    /* Initialize the clock interrupt handler */
+   //int_vec[CLOCK_DEV] = clock_handler;
    
 
    /* startup a sentinel process */
@@ -145,7 +149,7 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
       console("fork1(): creating process %s\n", name);
 
    /* test if in kernel mode; halt if in user mode */
-   if (psr_get() == 0)
+   if ((PSR_CURRENT_MODE & psr_get()) == 0)
    {
       halt(1);
    }
@@ -198,11 +202,12 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    //add stacksize to the stacksize entry of the PCB
    ProcTable[proc_slot].stacksize = stacksize;
 
-   //add priority level to the priority entry of the PCB
-
    /*
    *make sure that every entry in the PCB is filled out before context_init is reached
-   * 
+   *state
+   *pid (might be generated elsewhere?)
+   *priority
+   *status 
    */
 
    /* Initialize context for this process, but use launch function pointer for
@@ -212,6 +217,13 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    context_init(&(ProcTable[proc_slot].state), psr_get(),
                 ProcTable[proc_slot].stack, 
                 ProcTable[proc_slot].stacksize, launch);
+
+   /* call dispatcher - exception for sentinel */
+   if (strcmp(ProcTable[proc_slot].name, "sentinel") != 0)
+   {
+      console("Calling dispatcher for %s\n", ProcTable[proc_slot].name);
+      dispatcher();
+   }
 
    /* for future phase(s) */
    p1_fork(ProcTable[proc_slot].pid);
@@ -342,11 +354,19 @@ void disableInterrupts()
 } /* disableInterrupts */
 
 /*
- * Enable the interrupts.
- * Empty method to try to get the testcases running.
- * Implement later.
+ * Enables the interrupts.
  */
 static void enableInterrupts()
 {
-   //Add stuff later bruhs
+   psr_set((psr_get() | PSR_CURRENT_INT));
 }
+
+/* clock_handler function()
+*void clock_handler(int dev, void *unit){
+code inserted here
+use SYSCLOCK to check current time (perhaps required here)   
+}
+*
+*
+*
+*/
