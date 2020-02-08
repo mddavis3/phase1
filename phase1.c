@@ -97,6 +97,9 @@ void startup()
          console("startup(): fork1 of sentinel returned error, halting...\nResult = %d\n", result);
       halt(1);
    }
+
+   /* point Current to the sentinel process PCB in ProcTable */
+   Current = &ProcTable[0];
   
    /* start the test process */
    if (DEBUG && debugflag)
@@ -107,6 +110,7 @@ void startup()
       halt(1);
    }
 
+   printProcTable();
    console("startup(): Should not see this message! ");
    console("Returned from fork1 call that created start1\n");
 
@@ -167,7 +171,6 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
 
    /* find an empty slot in the process table */
    proc_slot = 0;
-   console("fork1(): made it to finding empty slot loop...\n");
    while (ProcTable[proc_slot].pid != NULL)
    {
       proc_slot++;
@@ -178,7 +181,6 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    }
 
    /* fill-in entry in process table */
-   console("made it to filling in entry in process table...\n");
    if ( strlen(name) >= (MAXNAME - 1) ) {
       console("fork1(): Process name is too long.  Halting...\n");
       halt(1);
@@ -202,18 +204,39 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    //add stacksize to the stacksize entry of the PCB
    ProcTable[proc_slot].stacksize = stacksize;
 
+   //add pid to the pid entry of the PCB
+   ProcTable[proc_slot].pid = next_pid++;
+
+   //add priority to the PCB entry
+   if (ProcTable[proc_slot].pid == SENTINELPID)
+   {
+      ProcTable[proc_slot].priority = SENTINELPRIORITY;
+   }
+   else ProcTable[proc_slot].priority = MAXPRIORITY;
+
+   //assign status and add to PCB entry
+   ProcTable[proc_slot].status = READY;
+
    /*
    *make sure that every entry in the PCB is filled out before context_init is reached
+   *add state once it is figured out
    *state
-   *pid (might be generated elsewhere?)
-   *priority
-   *status 
+   *
+   */
+
+   /* Point to process in the ReadyList */
+   /* This is an attempt to insert the process into the readylist
+   * it isn't good enough yet
+   if (ProcTable[proc_slot].pid != SENTINELPID)
+   {
+      ReadyList[(ProcTable[proc_slot].priority - 1)][0] = &ProcTable[proc_slot];
+   }
    */
 
    /* Initialize context for this process, but use launch function pointer for
     * the initial value of the process's program counter (PC)
     */
-   console("Sup yall, context init...\n");
+   console("fork1(): context init...\n");
    context_init(&(ProcTable[proc_slot].state), psr_get(),
                 ProcTable[proc_slot].stack, 
                 ProcTable[proc_slot].stacksize, launch);
@@ -224,9 +247,13 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
       console("Calling dispatcher for %s\n", ProcTable[proc_slot].name);
       dispatcher();
    }
+   
 
    /* for future phase(s) */
-   p1_fork(ProcTable[proc_slot].pid);
+   //p1_fork(ProcTable[proc_slot].pid);
+
+   /* return pid */
+   return (ProcTable[proc_slot].pid);
 
 } /* fork1 */
 
@@ -305,6 +332,10 @@ void dispatcher(void)
 {
    proc_ptr next_process;
 
+   //next process will point to a process in the ready list, chosen by priority or something else
+   //next_process = ReadyList[0][0];
+   //context_switch(Current, next_process);
+   
    p1_switch(Current->pid, next_process->pid);
 } /* dispatcher */
 
@@ -370,3 +401,22 @@ use SYSCLOCK to check current time (perhaps required here)
 *
 *
 */
+
+/*
+*
+* printProcTable()
+* prints information about the entries in the Proc Table
+*
+*
+*/
+void printProcTable()
+{
+   int i = 0;
+   while (ProcTable[i].pid != NULL && i < MAXPROC)
+   {
+      console("ProcTable entry %d:\nname: %s\npid: %d\nstatus: %d\n", i, ProcTable[i].name, ProcTable[i].pid, ProcTable[i].status);
+      i++;
+   }
+
+   return;
+}

@@ -39,4 +39,8 @@ union psr_values {
 #define MAXPRIORITY 1
 #define SENTINELPID 1
 #define SENTINELPRIORITY LOWEST_PRIORITY
+#define RUNNING 0
+#define READY 1
+#define BLOCKED 2
+#define QUIT 3
 
