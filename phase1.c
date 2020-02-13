@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <phase1.h>
 #include "kernel.h"
+#include <string.h>
 
 /* ------------------------- Prototypes ----------------------------------- */
 int sentinel (void *);
@@ -17,6 +18,10 @@ void dispatcher(void);
 void launch();
 static void enableInterrupts();
 static void check_deadlock();
+void printProcTable();
+static void insertRL(proc_ptr);
+void printReadyList();
+
 
 
 /* -------------------------- Globals ------------------------------------- */
@@ -31,7 +36,8 @@ proc_struct ProcTable[MAXPROC];
 /* ReadyList is a queue of queues of process pointers sorted by priority (1-5) 
    BlockedList is a queue of process pointers %%% maybe implement later %%%
 */
-proc_ptr ReadyList[5][MAXPROC];
+proc_ptr ReadyList = NULL;
+//proc_ptr ReadyList[5][MAXPROC];
 //proc_ptr BlockedList[MAXPROC];
 
 /* current process ID */
@@ -70,6 +76,8 @@ void startup()
    /* Initialize the Ready list, etc. */
    if (DEBUG && debugflag)
       console("startup(): initializing the Ready & Blocked lists\n");
+   
+   /*
    for ( i = 0; i < 5; i++)
    {
       for ( int j = 0; j < 50; j++)
@@ -77,6 +85,8 @@ void startup()
          ReadyList[i][j] = NULL;
       }
    }
+   */
+
    /*
    for ( i = 0; i < MAXPROC; i++)
    {
@@ -98,9 +108,6 @@ void startup()
       halt(1);
    }
 
-   /* point Current to the sentinel process PCB in ProcTable */
-   Current = &ProcTable[0];
-  
    /* start the test process */
    if (DEBUG && debugflag)
       console("startup(): calling fork1() for start1\n");
@@ -208,35 +215,26 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    ProcTable[proc_slot].pid = next_pid++;
 
    //add priority to the PCB entry
-   if (ProcTable[proc_slot].pid == SENTINELPID)
-   {
-      ProcTable[proc_slot].priority = SENTINELPRIORITY;
-   }
-   else ProcTable[proc_slot].priority = MAXPRIORITY;
+   ProcTable[proc_slot].priority = priority;
 
    //assign status and add to PCB entry
    ProcTable[proc_slot].status = READY;
 
    /*
    *make sure that every entry in the PCB is filled out before context_init is reached
-   *add state once it is figured out
-   *state
-   *
+   *state is automatically set by USLOSS simulator (I think...)
    */
 
    /* Point to process in the ReadyList */
-   /* This is an attempt to insert the process into the readylist
-   * it isn't good enough yet
-   if (ProcTable[proc_slot].pid != SENTINELPID)
-   {
-      ReadyList[(ProcTable[proc_slot].priority - 1)][0] = &ProcTable[proc_slot];
-   }
-   */
+   console("*fork1(): insertRL...\n");
+   insertRL(&ProcTable[proc_slot]);
+   //debug stuff!!!! delete later maybe!!! print readylist!!!
+   printReadyList();
 
    /* Initialize context for this process, but use launch function pointer for
     * the initial value of the process's program counter (PC)
     */
-   console("fork1(): context init...\n");
+   console("*fork1(): context init...\n");
    context_init(&(ProcTable[proc_slot].state), psr_get(),
                 ProcTable[proc_slot].stack, 
                 ProcTable[proc_slot].stacksize, launch);
@@ -244,13 +242,13 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    /* call dispatcher - exception for sentinel */
    if (strcmp(ProcTable[proc_slot].name, "sentinel") != 0)
    {
-      console("Calling dispatcher for %s\n", ProcTable[proc_slot].name);
+      console("*fork1(): Calling dispatcher for %s\n", ProcTable[proc_slot].name);
       dispatcher();
    }
    
 
    /* for future phase(s) */
-   //p1_fork(ProcTable[proc_slot].pid);
+   p1_fork(ProcTable[proc_slot].pid);
 
    /* return pid */
    return (ProcTable[proc_slot].pid);
@@ -331,12 +329,24 @@ void quit(int code)
 void dispatcher(void)
 {
    proc_ptr next_process;
+   proc_ptr old_process;
 
-   //next process will point to a process in the ready list, chosen by priority or something else
-   //next_process = ReadyList[0][0];
-   //context_switch(Current, next_process);
-   
-   p1_switch(Current->pid, next_process->pid);
+   console("*dispatcher(): Pointing next_process to ReadyList...\n");
+   next_process = ReadyList;
+
+   console("*dispatcher(): Pointing old_process to Current...\n");
+   old_process = Current;
+
+   console("*dispatcher(): Pointing Current to next_process...\n");
+   Current = next_process;
+
+   console("*dispatcher(): Calling context_switch...\n");
+   if (old_process == NULL)
+   {
+      context_switch(NULL, &next_process->state);
+   }
+   else context_switch(&old_process->state, &next_process->state);
+   //p1_switch(Current->pid, next_process->pid);
 } /* dispatcher */
 
 
@@ -369,9 +379,9 @@ static void check_deadlock()
 } /* check_deadlock */
 
 
-/*
- * Disables the interrupts.
- */
+/* -------------------------------------------------------------------------
+   Disables the interrupts.
+   --------------------------------------------------------------------------*/
 void disableInterrupts()
 {
   /* turn the interrupts OFF iff we are in kernel mode */
@@ -384,9 +394,9 @@ void disableInterrupts()
     psr_set( psr_get() & ~PSR_CURRENT_INT );
 } /* disableInterrupts */
 
-/*
- * Enables the interrupts.
- */
+/* --------------------------------------------------------------------------------
+   Enables the interrupts.
+   ---------------------------------------------------------------------------------*/
 static void enableInterrupts()
 {
    psr_set((psr_get() | PSR_CURRENT_INT));
@@ -402,13 +412,10 @@ use SYSCLOCK to check current time (perhaps required here)
 *
 */
 
-/*
-*
-* printProcTable()
-* prints information about the entries in the Proc Table
-*
-*
-*/
+/* ------------------------------------------------------------------------------
+   printProcTable()
+   prints information about the entries in the Proc Table
+   ------------------------------------------------------------------------------*/
 void printProcTable()
 {
    int i = 0;
@@ -418,5 +425,46 @@ void printProcTable()
       i++;
    }
 
+   return;
+}
+
+/* -------------------------------------------------------------------------------
+   insertRL() 
+   inserts entries into the ReadyList
+   -------------------------------------------------------------------------------*/
+static void insertRL(proc_ptr proc)
+{
+   proc_ptr walker, previous;  //pointers to PCB
+   previous = NULL;
+   walker = ReadyList;
+   while (walker != NULL && walker->priority <= proc->priority) {
+      previous = walker;
+      walker = walker->next_proc_ptr;
+   }
+   if (previous == NULL) {
+      /* process goes at front of ReadyList */
+      proc->next_proc_ptr = ReadyList;
+      ReadyList = proc;
+   }
+   else {
+      /* process goes after previous */
+      previous->next_proc_ptr = proc;
+      proc->next_proc_ptr = walker;
+   }
+   return;
+} /* insertRL */
+
+/* --------------------------------------------------------------------------------
+   printReadyList()
+   prints the Ready List contents for debug purposes
+   --------------------------------------------------------------------------------*/
+void printReadyList()
+{
+   proc_ptr walker;  //pointers to PCB
+   walker = ReadyList;
+   while (walker != NULL) {
+      console("Process name: %s, Priority: %d-->", walker->name, walker->priority);
+      walker = walker->next_proc_ptr;
+   }
    return;
 }
