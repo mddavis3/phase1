@@ -47,7 +47,7 @@ proc_ptr Current;
 unsigned int next_pid = SENTINELPID;
 
 /* empty proc_struct */
-proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 /* define the variable for the interrupt vector declared by USLOSS */
 //void(*int_vec[NUM_INTS])(int dev, void * unit);
@@ -299,7 +299,20 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
-   
+
+
+// Process is zapped 
+   if (Current->is_zapped == 1)
+   {
+      return -1;
+   }
+
+// Process has no children
+   if(Current->child_proc_ptr == NULL)
+   {
+      return -2;  
+   }
+
 } /* join */
 
 
@@ -435,7 +448,7 @@ int zap(int pid)
    ---------------------------------------------------------------------------------*/
 int is_zapped(void)
 {
-   
+
 }
 
 /* ------------------------------------------------------------------------------

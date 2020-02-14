@@ -8,6 +8,7 @@ struct proc_struct {
    proc_ptr       next_proc_ptr;
    proc_ptr       child_proc_ptr;
    proc_ptr       next_sibling_ptr;
+   proc_ptr       parent_ptr;
    char           name[MAXNAME];     /* process's name */
    char           start_arg[MAXARG]; /* args passed to process */
    context        state;             /* current context for process */
@@ -16,8 +17,13 @@ struct proc_struct {
    int (* start_func) (char *);      /* function where process begins -- launch */
    char          *stack;
    unsigned int   stacksize;
+<<<<<<< HEAD
    int            status;            /* READY, BLOCKED, QUIT, etc. */
    int            is_zapped;         /* ZAPPED, NOT_ZAPPED */
+=======
+   int            status;         /* READY, BLOCKED, QUIT, etc. */
+   int            isZapped;
+>>>>>>> 9098719e5b594fdebf67048acd8e94bc983ddad1
    /* other fields as needed... */
 };
 
