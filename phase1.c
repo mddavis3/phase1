@@ -21,6 +21,10 @@ static void check_deadlock();
 void printProcTable();
 static void insertRL(proc_ptr);
 void printReadyList();
+int zap(int);
+int is_zapped(void);
+static void removeFromRL(int);
+void insertChild(proc_ptr);
 
 
 
@@ -37,8 +41,6 @@ proc_struct ProcTable[MAXPROC];
    BlockedList is a queue of process pointers %%% maybe implement later %%%
 */
 proc_ptr ReadyList = NULL;
-//proc_ptr ReadyList[5][MAXPROC];
-//proc_ptr BlockedList[MAXPROC];
 
 /* current process ID */
 proc_ptr Current;
@@ -51,6 +53,7 @@ proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 
 /* define the variable for the interrupt vector declared by USLOSS */
 //void(*int_vec[NUM_INTS])(int dev, void * unit);
+
 
 
 /* -------------------------- Functions ----------------------------------- */
@@ -77,22 +80,6 @@ void startup()
    if (DEBUG && debugflag)
       console("startup(): initializing the Ready & Blocked lists\n");
    
-   /*
-   for ( i = 0; i < 5; i++)
-   {
-      for ( int j = 0; j < 50; j++)
-      {
-         ReadyList[i][j] = NULL;
-      }
-   }
-   */
-
-   /*
-   for ( i = 0; i < MAXPROC; i++)
-   {
-      BlockedList[i] = NULL;
-   }
-   */
 
    /* Initialize the clock interrupt handler */
    //int_vec[CLOCK_DEV] = clock_handler;
@@ -220,6 +207,12 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    //assign status and add to PCB entry
    ProcTable[proc_slot].status = READY;
 
+   //if Current is a Parent process, create the link to the child using insertChild method
+   if (Current != NULL)
+   {
+      insertChild(&ProcTable[proc_slot]); 
+   }
+
    /*
    *make sure that every entry in the PCB is filled out before context_init is reached
    *state is automatically set by USLOSS simulator (I think...)
@@ -301,17 +294,20 @@ int join(int *code)
 {
 
 
-// Process is zapped 
-   if (Current->is_zapped == 1)
+   //Process is zapped 
+   if (Current->is_zapped == ZAPPED)
    {
       return -1;
    }
 
-// Process has no children
+   //Process has no children
    if(Current->child_proc_ptr == NULL)
    {
       return -2;  
    }
+
+   //return the pid of the quitting child process that is joined on
+   return Current->child_proc_ptr->pid;
 
 } /* join */
 
@@ -327,6 +323,20 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
+   if (Current->child_proc_ptr != NULL)
+   {
+      console("Error! Process has children and cannot quit.\n");
+      halt(1);
+   }
+
+   Current->status = QUIT;
+
+   //cleanup PCB, redirect parents child_proc_ptr to NULL
+   Current->parent_ptr->child_proc_ptr = NULL;
+
+   //unblock processes that zapped this process
+
+   dispatcher();
    p1_quit(Current->pid);
 } /* quit */
 
@@ -356,9 +366,22 @@ void dispatcher(void)
    console("*dispatcher(): Calling context_switch...\n");
    if (old_process == NULL)
    {
+      removeFromRL(next_process->pid);
       context_switch(NULL, &next_process->state);
    }
-   else context_switch(&old_process->state, &next_process->state);
+   else 
+   {
+      removeFromRL(next_process->pid);
+
+      //if the "running" process is not-blocked, insert it into the ready list
+      if (old_process->status == READY)
+      {
+         insertRL(old_process);
+         printReadyList();
+      }
+
+      context_switch(&old_process->state, &next_process->state);
+   }
    //p1_switch(Current->pid, next_process->pid);
 } /* dispatcher */
 
@@ -435,7 +458,7 @@ use SYSCLOCK to check current time (perhaps required here)
    ---------------------------------------------------------------------------------*/
 int zap(int pid)
 {
-
+   return;
 }
 
 
@@ -448,7 +471,7 @@ int zap(int pid)
    ---------------------------------------------------------------------------------*/
 int is_zapped(void)
 {
-
+   return;
 }
 
 /* ------------------------------------------------------------------------------
@@ -494,6 +517,47 @@ static void insertRL(proc_ptr proc)
 } /* insertRL */
 
 /* --------------------------------------------------------------------------------
+   removeFromRL()
+   removes entry from the ReadyList
+   --------------------------------------------------------------------------------*/
+static void removeFromRL(int PID)
+{
+   proc_ptr walker, tmp;
+   walker = ReadyList;
+   tmp = walker;
+
+   //if sentinel is the only process in the ready list, don't do anything
+   if(walker->next_proc_ptr == NULL)
+   {
+      return;
+   }
+
+   //if process is the first item in the ready list
+   if(walker->pid == PID)
+   {
+      ReadyList = walker->next_proc_ptr;
+      walker->next_proc_ptr = NULL;
+      return;
+   }
+
+   //if process is somewhere else in the ready list, walk through the list
+   while (walker != NULL && walker->pid != PID)
+   {
+      tmp = walker;
+      walker = walker->next_proc_ptr;
+   }
+   if (walker->pid == PID)
+   {
+      tmp->next_proc_ptr = walker->next_proc_ptr;
+      walker->next_proc_ptr = NULL;
+      return;
+   }
+   return;
+}
+
+
+
+/* --------------------------------------------------------------------------------
    printReadyList()
    prints the Ready List contents for debug purposes
    --------------------------------------------------------------------------------*/
@@ -505,5 +569,32 @@ void printReadyList()
       console("Process name: %s, Priority: %d-->", walker->name, walker->priority);
       walker = walker->next_proc_ptr;
    }
+   return;
+}
+
+/* ------------------------------------------------------------------------------------
+   insertChild()
+   inserts a child process into the list of parents/children/siblings
+   maintains pointers and relationships
+   ------------------------------------------------------------------------------------*/
+void insertChild(proc_ptr child)
+{
+   proc_ptr walker;
+
+   if(Current->child_proc_ptr == NULL)
+   {
+      Current->child_proc_ptr = child;
+   }
+   else
+   {
+      walker = Current->child_proc_ptr;
+      while(walker->next_sibling_ptr != NULL)
+      {
+         walker = walker->next_sibling_ptr;
+      }
+      walker->next_sibling_ptr = child;
+   }
+   
+   child->parent_ptr = Current;
    return;
 }
