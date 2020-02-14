@@ -13,10 +13,11 @@ struct proc_struct {
    context        state;             /* current context for process */
    short          pid;               /* process id */
    int            priority;
-   int (* start_func) (char *);   /* function where process begins -- launch */
+   int (* start_func) (char *);      /* function where process begins -- launch */
    char          *stack;
    unsigned int   stacksize;
-   int            status;         /* READY, BLOCKED, QUIT, etc. */
+   int            status;            /* READY, BLOCKED, QUIT, etc. */
+   int            is_zapped;         /* ZAPPED, NOT_ZAPPED */
    /* other fields as needed... */
 };
 
@@ -43,4 +44,6 @@ union psr_values {
 #define READY 1
 #define BLOCKED 2
 #define QUIT 3
+#define NOT_ZAPPED 0
+#define ZAPPED 1
 

@@ -228,6 +228,7 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    /* Point to process in the ReadyList */
    console("*fork1(): insertRL...\n");
    insertRL(&ProcTable[proc_slot]);
+
    //debug stuff!!!! delete later maybe!!! print readylist!!!
    printReadyList();
 
@@ -298,6 +299,7 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
+   
 } /* join */
 
 
@@ -328,16 +330,14 @@ void quit(int code)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
+   console("Entered dispatcher() code segment...\n");
+
    proc_ptr next_process;
    proc_ptr old_process;
 
-   console("*dispatcher(): Pointing next_process to ReadyList...\n");
    next_process = ReadyList;
-
-   console("*dispatcher(): Pointing old_process to Current...\n");
+   
    old_process = Current;
-
-   console("*dispatcher(): Pointing Current to next_process...\n");
    Current = next_process;
 
    console("*dispatcher(): Calling context_switch...\n");
@@ -402,15 +402,41 @@ static void enableInterrupts()
    psr_set((psr_get() | PSR_CURRENT_INT));
 }
 
-/* clock_handler function()
+/* ---------------------------------------------------------------------------------
+clock_handler function()
 *void clock_handler(int dev, void *unit){
 code inserted here
 use SYSCLOCK to check current time (perhaps required here)   
 }
-*
-*
-*
-*/
+   ---------------------------------------------------------------------------------*/
+
+/* ---------------------------------------------------------------------------------
+   Name - zap
+   Purpose - a process arranges for another process to be killed by calling zap and
+             specifying the PID of the victim
+   Parameters - the PID of the victim process (short pid)
+   Returns - zap does not return until the victim process quits.  
+             -1 if the calling process was zapped while in zap
+              0 if the zapped process has called quit
+   Side effects - the caller of zap is placed into Blocked status
+   ---------------------------------------------------------------------------------*/
+int zap(int pid)
+{
+
+}
+
+
+/* ---------------------------------------------------------------------------------
+   Name - is_zapped
+   Purpose - 
+   Parameters - none
+   Returns - 
+   Side effects - 
+   ---------------------------------------------------------------------------------*/
+int is_zapped(void)
+{
+   
+}
 
 /* ------------------------------------------------------------------------------
    printProcTable()
