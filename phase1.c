@@ -292,7 +292,7 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
-
+   
 
    //Process is zapped 
    if (Current->is_zapped == ZAPPED)
@@ -305,6 +305,11 @@ int join(int *code)
    {
       return -2;  
    }
+
+   //current process has called join so needs to be blocked until child process quits 
+   Current->status = BLOCKED;
+   //current process blocked dispatcher needs to be called
+   dispatcher();
 
    //return the pid of the quitting child process that is joined on
    return Current->child_proc_ptr->pid;
@@ -358,30 +363,37 @@ void dispatcher(void)
    proc_ptr next_process;
    proc_ptr old_process;
 
-   next_process = ReadyList;
-   
-   old_process = Current;
-   Current = next_process;
-
-   console("*dispatcher(): Calling context_switch...\n");
-   if (old_process == NULL)
+   //if current process still has highest priority the let it run.  Assuming it hasn't exceeded its time limit.  ****For now time limit is left off****
+   if(Current != NULL && Current->priority <= ReadyList->priority && Current->status == RUNNING)//if true skip context switch
    {
+      return;
+   }
+      next_process = ReadyList;
+   
+      old_process = Current;
+      Current = next_process;
+
+   
+      console("*dispatcher(): Calling context_switch...\n");
+      if (old_process == NULL)
+      {
       removeFromRL(next_process->pid);
       context_switch(NULL, &next_process->state);
-   }
-   else 
-   {
-      removeFromRL(next_process->pid);
-
-      //if the "running" process is not-blocked, insert it into the ready list
-      if (old_process->status == READY)
-      {
-         insertRL(old_process);
-         printReadyList();
       }
+      else 
+      {
+         removeFromRL(next_process->pid);
 
-      context_switch(&old_process->state, &next_process->state);
-   }
+         //if the "running" process is not-blocked, insert it into the ready list
+         if (old_process->status == READY)
+         {
+            insertRL(old_process);
+            printReadyList();
+         }
+
+         context_switch(&old_process->state, &next_process->state);
+      }
+   
    //p1_switch(Current->pid, next_process->pid);
 } /* dispatcher */
 
@@ -458,7 +470,7 @@ use SYSCLOCK to check current time (perhaps required here)
    ---------------------------------------------------------------------------------*/
 int zap(int pid)
 {
-   return;
+   return -1;
 }
 
 
@@ -471,7 +483,7 @@ int zap(int pid)
    ---------------------------------------------------------------------------------*/
 int is_zapped(void)
 {
-   return;
+   return 0;
 }
 
 /* ------------------------------------------------------------------------------
@@ -565,10 +577,13 @@ void printReadyList()
 {
    proc_ptr walker;  //pointers to PCB
    walker = ReadyList;
+   console("\n================================================================================\n");
    while (walker != NULL) {
       console("Process name: %s, Priority: %d-->", walker->name, walker->priority);
       walker = walker->next_proc_ptr;
    }
+      console("NULL\n");
+   console("================================================================================\n");
    return;
 }
 
