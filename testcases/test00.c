@@ -17,7 +17,7 @@ int start1(char *arg)
 
   //added to the test case to see what status variable was because it was being printed without being instantiated.  
   //It appears to be the joined-on child's exit status 
-  printf("the current value for status is: %d \n",status);
+  printf("start1(): the current value for status is: %d \n",status);
 
   kidpid = join(&status);
   sprintf(buf,"start1(): exit status for child %d is %d\n", kidpid, status); 

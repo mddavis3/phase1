@@ -230,7 +230,7 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    /* call dispatcher - exception for sentinel */
    if (strcmp(ProcTable[proc_slot].name, "sentinel") != 0)
    {
-      console("*fork1(): Calling dispatcher for %s\n", ProcTable[proc_slot].name);
+      console("fork1(): calling dispatcher\n");
       dispatcher();
    }
    
@@ -301,6 +301,7 @@ int join(int *code)
    Current->status = BLOCKED;
 
    //current process blocked dispatcher needs to be called
+   console("join(): calling dispatcher\n");
    dispatcher();
 
    //set exit code for child of parent calling join
@@ -323,30 +324,62 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
+   //if the parent has active children, halt(1)
+   console("quit(): checking for active children\n");
    if (Current->child_proc_ptr != NULL)
    {
-      console("Error! Process has children and cannot quit.\n");
-      halt(1);
+      proc_ptr walker = Current->child_proc_ptr;
+      if (walker->status != QUIT)
+      {
+         console("Error! Active child status = %d\n", walker->status);
+         console("Error! Process has active children and cannot quit.\n");
+         halt(1);
+      }
+      else
+      {
+         while (walker->next_sibling_ptr != NULL)
+         {
+            walker = walker->next_sibling_ptr;
+            if (walker->status != QUIT)
+            {
+               console("Error! Active child status = %d\n", walker->status);
+               console("Error! Process has active children and cannot quit.\n");
+               halt(1);
+            }
+         }
+      }  
    }
 
+   //set status to QUIT
+   console("quit(): change status to QUIT\n");
    Current->status = QUIT;
+   console("quit(): status of %s is %d (3 == QUIT)\n", Current->name, Current->status);
 
-   //cleanup PCB, redirect parents child_proc_ptr to NULL   ******check into idea to walk down list of children first.  Concerened that just changing to NULL ignores other children****
-   Current->parent_ptr->child_proc_ptr = NULL;
+   //cleanup PCB
 
    //unblock processes that zapped this process
 
 
    //unblock parent who called join
-   if(Current->parent_ptr->status == BLOCKED)
+   if(Current->parent_ptr != NULL && Current->parent_ptr->status == BLOCKED)
    {
-
+      console("quit(): unblock %s who called join, insert to ready list\n", Current->parent_ptr->name);
+      Current->parent_ptr->status = READY;
+      insertRL(Current->parent_ptr);
+      printReadyList();
+      console("\n");
    }
 
-   //remove quit process from the ready list
-   removeFromRL(Current->pid);
-   
+   //send quit code to the parent process exit_code PCB entry
+   //maybe check if parent has called join???
+   if(Current->parent_ptr != NULL)
+   {
+      console("quit(): send exit_code to parent %s\n", Current->parent_ptr->name);
+      Current->parent_ptr->exit_code = code;
+   }
+
    //call dispatcher to switch to another process
+   console("quit(): call dispatcher\n");
    dispatcher();
 
    p1_quit(Current->pid);
@@ -365,11 +398,6 @@ void quit(int code)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
-   console("Entered dispatcher() code segment...\n");
-
-   proc_ptr next_process;
-   proc_ptr old_process;
-
    //if current process still has highest priority the let it run.  
    //Assuming it hasn't exceeded its time limit.  ****For now time limit is left off****
    if(Current != NULL && Current->priority <= ReadyList->priority && Current->status == RUNNING)//if true skip context switch
@@ -377,19 +405,30 @@ void dispatcher(void)
       return;
    }
 
+   proc_ptr next_process;
+   proc_ptr old_process;
+
    next_process = ReadyList;
    old_process = Current;
    Current = next_process;
 
-   
-   console("*dispatcher(): context_switch\n");
-   if (old_process == NULL)
+   if (old_process == NULL) //if starting up
    {
       next_process->status = RUNNING;
       removeFromRL(next_process->pid);
+      console("dispatcher(): context_switch to %s\n", next_process->name);
       context_switch(NULL, &next_process->state);
    }
-   else 
+   else if (old_process->status == QUIT) //if old_process has quit
+   {
+      next_process->status = RUNNING;
+      removeFromRL(next_process->pid);
+      console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
+      printReadyList();
+      console("\n");
+      context_switch(&old_process->state, &next_process->state);
+   }
+   else //if old_process is running or blocked
    {
       next_process->status = RUNNING;
       removeFromRL(next_process->pid);
@@ -400,8 +439,10 @@ void dispatcher(void)
          old_process->status = READY;
          insertRL(old_process);
          printReadyList();
+         console("\n");
       }
 
+      console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
       context_switch(&old_process->state, &next_process->state);
    }
    
@@ -435,6 +476,25 @@ int sentinel (void * dummy)
 /* check to determine if deadlock has occurred... */
 static void check_deadlock()
 {
+   if (check_io() == 1)
+      return;
+
+   //run through the PCB and see if any processes are active
+   for( int i = 0; i < MAXPROC; i++)
+   {
+      if (ProcTable[i].pid != NULL)
+      {
+         if (ProcTable[i].pid != SENTINELPID && ProcTable[i].status != QUIT)
+         {
+            console("sentinel(): active processes besides sentinel, halt(1)\n");
+            console("sentinel(): status of active process %s is %d\n", ProcTable[i].name, ProcTable[i].status);
+            halt(1);
+         }
+      }
+   }
+
+   console("sentinel(): no other active processes, halt(0)\n");
+   halt(0);
 } /* check_deadlock */
 
 
@@ -625,4 +685,14 @@ void insertChild(proc_ptr child)
    
    child->parent_ptr = Current;
    return;
+}
+
+/* -------------------------------------------------------------------------------
+   check_io()
+   Checks for input and output
+   Dummy function that returns 0 in phase1
+   -------------------------------------------------------------------------------*/
+int check_io(void)
+{
+   return 0;
 }
