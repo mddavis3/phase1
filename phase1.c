@@ -47,7 +47,7 @@ proc_ptr Current;
 unsigned int next_pid = SENTINELPID;
 
 /* empty proc_struct */
-proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 /* define the variable for the interrupt vector declared by USLOSS */
 //void(*int_vec[NUM_INTS])(int dev, void * unit);
@@ -300,8 +300,15 @@ int join(int *code)
    //current process has called join so needs to be blocked until child process quits 
    Current->status = BLOCKED;
 
+   //remove current (parent) process from the ready list
+   //removeFromRL(); 
+
    //current process blocked dispatcher needs to be called
    dispatcher();
+
+
+   //set exit code for child of parent calling join
+   *code = Current->child_proc_ptr->exit_code;
 
    //return the pid of the quitting child process that is joined on
    return Current->child_proc_ptr->pid;
@@ -328,12 +335,19 @@ void quit(int code)
 
    Current->status = QUIT;
 
-   //cleanup PCB, redirect parents child_proc_ptr to NULL
+   //cleanup PCB, redirect parents child_proc_ptr to NULL   ******check into idea to walk down list of children first.  Concerened that just changing to NULL ignores other children****
    Current->parent_ptr->child_proc_ptr = NULL;
 
    //unblock processes that zapped this process
 
-   //call the dispatcher to schedule a process to run
+
+   //unblock parent who called join
+   if(Current->parent_ptr->status == BLOCKED)
+   {
+
+   }
+
+
    dispatcher();
 
    p1_quit(Current->pid);
@@ -364,31 +378,33 @@ void dispatcher(void)
       return;
    }
 
-      next_process = ReadyList;
-      old_process = Current;
-      Current = next_process;
+   next_process = ReadyList;
+   old_process = Current;
+   Current = next_process;
 
    
-      console("*dispatcher(): context_switch\n");
-      if (old_process == NULL)
-      {
-      removeFromRL(next_process->pid);
+   console("*dispatcher(): context_switch\n");
+   if (old_process == NULL)
+   {
       next_process->status = RUNNING;
+      removeFromRL(next_process->pid);
       context_switch(NULL, &next_process->state);
-      }
-      else 
-      {
-         removeFromRL(next_process->pid);
+   }
+   else 
+   {
+      next_process->status = RUNNING;
+      removeFromRL(next_process->pid);
 
-         //if the "running" process is not-blocked, insert it into the ready list
-         if (old_process->status == READY)
-         {
-            insertRL(old_process);
-            printReadyList();
-         }
-         next_process->status = RUNNING;
-         context_switch(&old_process->state, &next_process->state);
+      //if the "running" process is not-blocked, insert it into the ready list
+      if (old_process->status != BLOCKED)
+      {
+         old_process->status = READY;
+         insertRL(old_process);
+         printReadyList();
       }
+
+      context_switch(&old_process->state, &next_process->state);
+   }
    
    //p1_switch(Current->pid, next_process->pid);
 } /* dispatcher */
