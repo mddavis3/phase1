@@ -49,7 +49,7 @@ proc_ptr Current;
 unsigned int next_pid = SENTINELPID;
 
 /* empty proc_struct */
-proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 /* define the variable for the interrupt vector declared by USLOSS */
 //void(*int_vec[NUM_INTS])(int dev, void * unit);
@@ -311,6 +311,10 @@ int join(int *code)
    //current process blocked dispatcher needs to be called
    dispatcher();
 
+
+   //set exit code for child of parent calling join
+   *code = Current->child_proc_ptr->exit_code;
+
    //return the pid of the quitting child process that is joined on
    return Current->child_proc_ptr->pid;
 
@@ -336,10 +340,18 @@ void quit(int code)
 
    Current->status = QUIT;
 
-   //cleanup PCB, redirect parents child_proc_ptr to NULL
+   //cleanup PCB, redirect parents child_proc_ptr to NULL   ******check into idea to walk down list of children first.  Concerened that just changing to NULL ignores other children****
    Current->parent_ptr->child_proc_ptr = NULL;
 
    //unblock processes that zapped this process
+
+
+   //unblock parent who called join
+   if(Current->parent_ptr->status == BLOCKED)
+   {
+
+   }
+
 
    dispatcher();
    p1_quit(Current->pid);

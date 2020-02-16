@@ -19,6 +19,7 @@ struct proc_struct {
    unsigned int   stacksize;
    int            status;            /* READY, BLOCKED, QUIT, etc. */
    int            is_zapped;         /* ZAPPED, NOT_ZAPPED */
+   int            exit_code;         /* the exit code of process when it calls quit */
    /* other fields as needed... */
 };
 
