@@ -300,12 +300,8 @@ int join(int *code)
    //current process has called join so needs to be blocked until child process quits 
    Current->status = BLOCKED;
 
-   //remove current (parent) process from the ready list
-   //removeFromRL(); 
-
    //current process blocked dispatcher needs to be called
    dispatcher();
-
 
    //set exit code for child of parent calling join
    *code = Current->child_proc_ptr->exit_code;
@@ -347,7 +343,10 @@ void quit(int code)
 
    }
 
-
+   //remove quit process from the ready list
+   removeFromRL(Current->pid);
+   
+   //call dispatcher to switch to another process
    dispatcher();
 
    p1_quit(Current->pid);
