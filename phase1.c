@@ -25,6 +25,7 @@ int zap(int);
 int is_zapped(void);
 static void removeFromRL(int);
 void insertChild(proc_ptr);
+int check_io(void);
 
 
 
@@ -300,7 +301,7 @@ int join(int *code)
    //current process has called join so needs to be blocked until child process quits 
    Current->status = BLOCKED;
 
-   //current process blocked dispatcher needs to be called
+   //current process blocked, dispatcher needs to be called
    console("join(): calling dispatcher\n");
    dispatcher();
 
