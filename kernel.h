@@ -17,7 +17,7 @@ struct proc_struct {
    int (* start_func) (char *);      /* function where process begins -- launch */
    char          *stack;
    unsigned int   stacksize;
-   int            status;            /* READY, BLOCKED, QUIT, etc. */
+   int            status;            /* RUNNING, READY, BLOCKED, QUIT, etc. */
    int            is_zapped;         /* ZAPPED, NOT_ZAPPED */
    /* other fields as needed... */
 };

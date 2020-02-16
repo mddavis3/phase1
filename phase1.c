@@ -37,9 +37,7 @@ int debugflag = 1;
 proc_struct ProcTable[MAXPROC];
 
 /* Process lists  */
-/* ReadyList is a queue of queues of process pointers sorted by priority (1-5) 
-   BlockedList is a queue of process pointers %%% maybe implement later %%%
-*/
+/* ReadyList is a linked list of process pointers */
 proc_ptr ReadyList = NULL;
 
 /* current process ID */
@@ -158,8 +156,7 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
       return (-2);
    }
 
-   //need to malloc stack here using the stacksize
-   //maybe come up with a better name for the pointer
+   /* create a stack pointer, malloc stack using the stacksize */
    char* stackPtr = (char*) malloc (stacksize * sizeof(int));
 
 
@@ -175,14 +172,17 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    }
 
    /* fill-in entry in process table */
+   /* process name */
    if ( strlen(name) >= (MAXNAME - 1) ) {
       console("fork1(): Process name is too long.  Halting...\n");
       halt(1);
    }
    strcpy(ProcTable[proc_slot].name, name);
 
+   /* process starting function */
    ProcTable[proc_slot].start_func = f;
 
+   /* process function argument */
    if ( arg == NULL )
       ProcTable[proc_slot].start_arg[0] = '\0';
    else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -192,43 +192,37 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    else
       strcpy(ProcTable[proc_slot].start_arg, arg);
    
-   //added stackPtr to the stack entry of the PCB
+   /* process stack pointer */
    ProcTable[proc_slot].stack = stackPtr;
 
-   //add stacksize to the stacksize entry of the PCB
+   /* process stacksize */
    ProcTable[proc_slot].stacksize = stacksize;
 
-   //add pid to the pid entry of the PCB
+   /* process pid */
    ProcTable[proc_slot].pid = next_pid++;
 
-   //add priority to the PCB entry
+   /* process priority */
    ProcTable[proc_slot].priority = priority;
 
-   //assign status and add to PCB entry
+   /* process status (READY by default) */
    ProcTable[proc_slot].status = READY;
 
-   //if Current is a Parent process, create the link to the child using insertChild method
+   /* if Current is a Parent process, create the link to the child using insertChild method */
    if (Current != NULL)
    {
       insertChild(&ProcTable[proc_slot]); 
    }
 
-   /*
-   *make sure that every entry in the PCB is filled out before context_init is reached
-   *state is automatically set by USLOSS simulator (I think...)
-   */
-
    /* Point to process in the ReadyList */
-   console("*fork1(): insertRL...\n");
    insertRL(&ProcTable[proc_slot]);
 
    //debug stuff!!!! delete later maybe!!! print readylist!!!
    printReadyList();
+   console("\n");
 
    /* Initialize context for this process, but use launch function pointer for
     * the initial value of the process's program counter (PC)
     */
-   console("*fork1(): context init...\n");
    context_init(&(ProcTable[proc_slot].state), psr_get(),
                 ProcTable[proc_slot].stack, 
                 ProcTable[proc_slot].stacksize, launch);
@@ -240,7 +234,6 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
       dispatcher();
    }
    
-
    /* for future phase(s) */
    p1_fork(ProcTable[proc_slot].pid);
 
@@ -292,8 +285,6 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
-   
-
    //Process is zapped 
    if (Current->is_zapped == ZAPPED)
    {
@@ -308,6 +299,7 @@ int join(int *code)
 
    //current process has called join so needs to be blocked until child process quits 
    Current->status = BLOCKED;
+
    //current process blocked dispatcher needs to be called
    dispatcher();
 
@@ -341,7 +333,9 @@ void quit(int code)
 
    //unblock processes that zapped this process
 
+   //call the dispatcher to schedule a process to run
    dispatcher();
+
    p1_quit(Current->pid);
 } /* quit */
 
@@ -363,21 +357,23 @@ void dispatcher(void)
    proc_ptr next_process;
    proc_ptr old_process;
 
-   //if current process still has highest priority the let it run.  Assuming it hasn't exceeded its time limit.  ****For now time limit is left off****
+   //if current process still has highest priority the let it run.  
+   //Assuming it hasn't exceeded its time limit.  ****For now time limit is left off****
    if(Current != NULL && Current->priority <= ReadyList->priority && Current->status == RUNNING)//if true skip context switch
    {
       return;
    }
+
       next_process = ReadyList;
-   
       old_process = Current;
       Current = next_process;
 
    
-      console("*dispatcher(): Calling context_switch...\n");
+      console("*dispatcher(): context_switch\n");
       if (old_process == NULL)
       {
       removeFromRL(next_process->pid);
+      next_process->status = RUNNING;
       context_switch(NULL, &next_process->state);
       }
       else 
@@ -390,7 +386,7 @@ void dispatcher(void)
             insertRL(old_process);
             printReadyList();
          }
-
+         next_process->status = RUNNING;
          context_switch(&old_process->state, &next_process->state);
       }
    
@@ -428,6 +424,7 @@ static void check_deadlock()
 
 
 /* -------------------------------------------------------------------------
+   disableInterrupts()
    Disables the interrupts.
    --------------------------------------------------------------------------*/
 void disableInterrupts()
@@ -443,6 +440,7 @@ void disableInterrupts()
 } /* disableInterrupts */
 
 /* --------------------------------------------------------------------------------
+   enableInterrupts()
    Enables the interrupts.
    ---------------------------------------------------------------------------------*/
 static void enableInterrupts()
@@ -451,10 +449,10 @@ static void enableInterrupts()
 }
 
 /* ---------------------------------------------------------------------------------
-clock_handler function()
-*void clock_handler(int dev, void *unit){
-code inserted here
-use SYSCLOCK to check current time (perhaps required here)   
+   clock_handler function()
+   *void clock_handler(int dev, void *unit){
+   code inserted here
+   use SYSCLOCK to check current time (perhaps required here)   
 }
    ---------------------------------------------------------------------------------*/
 
