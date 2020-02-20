@@ -20,6 +20,8 @@ struct proc_struct {
    int            status;            /* RUNNING, READY, BLOCKED, QUIT, etc. */
    int            is_zapped;         /* ZAPPED, NOT_ZAPPED */
    int            exit_code;         /* the exit code of process when it calls quit */
+   int            blocked_status;    /* indicates how something was blocked */
+   int            start_time;        /* records the start time in milliseconds */
    /* other fields as needed... */
 };
 

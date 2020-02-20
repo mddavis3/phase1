@@ -18,7 +18,7 @@ void dispatcher(void);
 void launch();
 static void enableInterrupts();
 static void check_deadlock();
-void printProcTable();
+void dump_processes();
 static void insertRL(proc_ptr);
 void printReadyList();
 int zap(int);
@@ -26,6 +26,13 @@ int is_zapped(void);
 static void removeFromRL(int);
 void insertChild(proc_ptr);
 int check_io(void);
+int getpid(void);
+int block_me(int);
+int unblock_proc(int);
+int read_cur_start_time(void);
+void time_slice(void);
+int readtime(void);
+
 
 
 
@@ -48,7 +55,7 @@ proc_ptr Current;
 unsigned int next_pid = SENTINELPID;
 
 /* empty proc_struct */
-proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 /* define the variable for the interrupt vector declared by USLOSS */
 //void(*int_vec[NUM_INTS])(int dev, void * unit);
@@ -103,7 +110,7 @@ void startup()
       halt(1);
    }
 
-   printProcTable();
+   dump_processes();
    console("startup(): Should not see this message! ");
    console("Returned from fork1 call that created start1\n");
 
@@ -418,6 +425,7 @@ void dispatcher(void)
       next_process->status = RUNNING;
       removeFromRL(next_process->pid);
       console("dispatcher(): context_switch to %s\n", next_process->name);
+      next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(NULL, &next_process->state);
    }
    else if (old_process->status == QUIT) //if old_process has quit
@@ -427,6 +435,7 @@ void dispatcher(void)
       console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
       printReadyList();
       console("\n");
+      next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(&old_process->state, &next_process->state);
    }
    else //if old_process is running or blocked
@@ -444,6 +453,7 @@ void dispatcher(void)
       }
 
       console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
+      next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(&old_process->state, &next_process->state);
    }
    
@@ -561,18 +571,33 @@ int is_zapped(void)
 }
 
 /* ------------------------------------------------------------------------------
-   printProcTable()
+   dump_processes()
    prints information about the entries in the Proc Table
    ------------------------------------------------------------------------------*/
-void printProcTable()
+void dump_processes()
 {
    int i = 0;
+   console("\n==============================dump_processes====================================\n");
    while (ProcTable[i].pid != NULL && i < MAXPROC)
    {
-      console("ProcTable entry %d:\nname: %s\npid: %d\nstatus: %d\n", i, ProcTable[i].name, ProcTable[i].pid, ProcTable[i].status);
+      console("ProcTable entry %d:\n", i);
+      console("Name: %s\n", ProcTable[i].name);
+      console("PID: %d\n", ProcTable[i].pid);
+      //console("Parent PID: %d\n", ProcTable[i].parent_ptr->pid);
+      if(ProcTable[i].parent_ptr == NULL)
+      {
+         console("Parent PID: N/A\n");
+      }
+      else
+      {
+         console("Parent PID: %d\n", ProcTable[i].parent_ptr->pid);
+      }
+      console("Status: %d\n", ProcTable[i].status);
+      console("# of Children: %d\n", i); //change to number of children here, i is placeholder
+      console("CPU time: %d\n", ProcTable[i].start_time); //some accumulation method for time running
+      console("-------------------\n");
       i++;
    }
-
    return;
 }
 
@@ -696,4 +721,113 @@ void insertChild(proc_ptr child)
 int check_io(void)
 {
    return 0;
+}
+
+/*
+getpid()
+returns the pid of current process
+*/
+int getpid(void)
+{
+   return Current->pid;
+}
+
+/*
+block_me()
+blocks the calling process
+new_status is value used to indicate status of the process in the dump_processes command
+new_status must be larger than 10; if not, USLOSS will halt with error message
+*/
+int block_me(int new_status)
+{
+   if (new_status <= 10)
+   {
+      console("block_me: Error - new_status <= 10. Halt(1)\n");
+      halt(1);
+   }
+
+   if (Current->is_zapped == ZAPPED)
+   {
+      return -1;
+   }
+
+   Current->status = BLOCKED;
+   Current->blocked_status = new_status;
+   return 0;
+}
+
+/*
+unblock_proc()
+unblocks process with pid that had been blocked by calling block_me
+status is changed to READY and put into ReadyList
+dispatcher will be called as a side-effect
+*/
+int unblock_proc(int pid)
+{
+   if (Current->is_zapped == ZAPPED)
+   {
+      return -1;
+   }
+
+   int i = 0;
+   while (ProcTable[i].pid != pid && i < MAXPROC)
+   {
+      i++;
+   }
+   if (i == MAXPROC)
+   {
+      return -2;
+   }
+   if (ProcTable[i].status != BLOCKED)
+   {
+      return -2;
+   }
+   if (ProcTable[i].pid == Current->pid)
+   {
+      return -2;
+   }
+   if (ProcTable[i].blocked_status <= 10)
+   {
+      return -2;
+   }
+
+   ProcTable[i].status = READY;
+   insertRL(&ProcTable[i]);
+   dispatcher();
+   return 0;
+}
+
+/*
+read_cur_start_time()
+returns the time (in microseconds) at which the current process 
+began its current time slice
+*/
+int read_cur_start_time(void)
+{
+   return (Current->start_time);
+}
+
+/*
+time_slice()
+calls the dispatcher if currently executing process has exceeded its time slice
+otherwise it simply returns
+*/
+void time_slice(void)
+{
+   if (readtime() >= 80)
+   {
+      dispatcher();
+   }
+   return;
+}
+
+/*
+readtime()
+returns CPU time (in milliseconds) used by the current process.
+*/
+int readtime(void)
+{
+   int time;
+   time = (sys_clock() - Current->start_time) / 1000; // 1000 microseconds = 1 millisecond
+   return time;
 }
