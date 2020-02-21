@@ -22,6 +22,8 @@ struct proc_struct {
    int            exit_code;         /* the exit code of process when it calls quit */
    int            blocked_status;    /* indicates how something was blocked */
    int            start_time;        /* records the start time in milliseconds */
+   int            num_kids;          /* keeps count of number of children process has */
+   int            pc_time;           /* running total amount of  pc_time process has had in processor */
    /* other fields as needed... */
 };
 

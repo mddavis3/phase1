@@ -55,7 +55,7 @@ proc_ptr Current;
 unsigned int next_pid = SENTINELPID;
 
 /* empty proc_struct */
-proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0};
 
 /* define the variable for the interrupt vector declared by USLOSS */
 //void(*int_vec[NUM_INTS])(int dev, void * unit);
@@ -219,6 +219,7 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    if (Current != NULL)
    {
       insertChild(&ProcTable[proc_slot]); 
+      Current->num_kids ++;   //add a kid to the num_kids slot
    }
 
    /* Point to process in the ReadyList */
@@ -356,7 +357,8 @@ void quit(int code)
             }
          }
       }  
-   }
+   }// end child check code
+
 
    //set status to QUIT
    console("quit(): change status to QUIT\n");
@@ -365,8 +367,7 @@ void quit(int code)
 
    //cleanup PCB
 
-   //unblock processes that zapped this process
-
+   //unblock processes that zapped this process ***TODO***
 
    //unblock parent who called join
    if(Current->parent_ptr != NULL && Current->parent_ptr->status == BLOCKED)
@@ -375,11 +376,11 @@ void quit(int code)
       Current->parent_ptr->status = READY;
       insertRL(Current->parent_ptr);
       printReadyList();
+      Current->parent_ptr->num_kids --;   //Decrement kid counter of parent process
       console("\n");
    }
 
    //send quit code to the parent process exit_code PCB entry
-   //maybe check if parent has called join???
    if(Current->parent_ptr != NULL)
    {
       console("quit(): send exit_code to parent %s\n", Current->parent_ptr->name);
@@ -435,6 +436,7 @@ void dispatcher(void)
       console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
       printReadyList();
       console("\n");
+      old_process->pc_time = old_process->pc_time + readtime(); //get time spent in porcessor for old_process and update pc_time
       next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(&old_process->state, &next_process->state);
    }
@@ -453,6 +455,7 @@ void dispatcher(void)
       }
 
       console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
+      old_process->pc_time = old_process->pc_time + readtime(); //get time spent in porcessor for old_process and update pc_time
       next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(&old_process->state, &next_process->state);
    }
@@ -484,7 +487,12 @@ int sentinel (void * dummy)
 } /* sentinel */
 
 
-/* check to determine if deadlock has occurred... */
+/* -----------------------------------------------------------------------
+   Name - check deadlock
+   Purpose - check to determine if deadlock has occurred...
+   Parameters - None
+   Returns -  Nothing
+   --------------------------------------------------------------------- */
 static void check_deadlock()
 {
    if (check_io() == 1)
@@ -510,8 +518,10 @@ static void check_deadlock()
 
 
 /* -------------------------------------------------------------------------
-   disableInterrupts()
-   Disables the interrupts.
+   Name - disableInterrupts()
+   Purpose - Disables the interrupts.
+   Parameters - None
+   Returns - Nothing
    --------------------------------------------------------------------------*/
 void disableInterrupts()
 {
@@ -525,16 +535,20 @@ void disableInterrupts()
     psr_set( psr_get() & ~PSR_CURRENT_INT );
 } /* disableInterrupts */
 
+
 /* --------------------------------------------------------------------------------
-   enableInterrupts()
-   Enables the interrupts.
+   Name - enableInterrupts()
+   Purpose - Enables the interrupts.
+   Parameters - None
+   Returns - Nothing
    ---------------------------------------------------------------------------------*/
 static void enableInterrupts()
 {
    psr_set((psr_get() | PSR_CURRENT_INT));
-}
+}  /*enableInterrupts*/
 
-/* ---------------------------------------------------------------------------------
+
+/* ------------------------------------------------TODO---------------------------------
    clock_handler function()
    *void clock_handler(int dev, void *unit){
    code inserted here
@@ -542,7 +556,9 @@ static void enableInterrupts()
 }
    ---------------------------------------------------------------------------------*/
 
-/* ---------------------------------------------------------------------------------
+
+
+/* -------------------------------------------TODO--------------------------------------
    Name - zap
    Purpose - a process arranges for another process to be killed by calling zap and
              specifying the PID of the victim
@@ -554,25 +570,62 @@ static void enableInterrupts()
    ---------------------------------------------------------------------------------*/
 int zap(int pid)
 {
+   int proc_slot = 0;
+
+  while (ProcTable[proc_slot].pid != pid)
+   {
+      proc_slot++;
+      if (proc_slot == MAXPROC)
+      {
+         console("zap(): Tried to zap a process that does not exist");
+         halt(1);
+      }
+   }
+   //process to be zapped has been found and is_zapped is set to Zapped
+   ProcTable[proc_slot].is_zapped == ZAPPED;
+
+   //***Considering creating yet another struct element in PCB called zapped_by that stores Null of a pid of process who did zapping maybe***
+
+   //This process called zap and now needs to be blocked
+   Current->status == BLOCKED;
+
+   //current process blocked, dispatcher needs to be called
+   console("zap(): calling dispatcher\n");
+   dispatcher();
+
+
+   //***need to work on return values***
    return -1;
-}
+}/* zap */
 
 
 /* ---------------------------------------------------------------------------------
    Name - is_zapped
-   Purpose - 
+   Purpose - Checks if the current process is_Zapped or not
    Parameters - none
-   Returns - 
+   Returns -  Nothing
    Side effects - 
    ---------------------------------------------------------------------------------*/
 int is_zapped(void)
 {
-   return 0;
-}
+
+   if(Current->is_zapped == ZAPPED)
+   {
+      return ZAPPED;
+   }
+   else
+   {
+   return NOT_ZAPPED;   // if is_zapped element in PCB struct is set to null the else statment should force NOT_ZAPPED to be returned
+   }
+}/* is_zapped */
+
+
 
 /* ------------------------------------------------------------------------------
-   dump_processes()
-   prints information about the entries in the Proc Table
+   Name - dump_processes()
+   Purpose - prints information about the entries in the Proc Table
+   Parameters - None
+   Returns - Nothing
    ------------------------------------------------------------------------------*/
 void dump_processes()
 {
@@ -592,18 +645,31 @@ void dump_processes()
       {
          console("Parent PID: %d\n", ProcTable[i].parent_ptr->pid);
       }
-      console("Status: %d\n", ProcTable[i].status);
-      console("# of Children: %d\n", i); //change to number of children here, i is placeholder
-      console("CPU time: %d\n", ProcTable[i].start_time); //some accumulation method for time running
+
+      if(ProcTable[i].status == READY)
+      {
+      console("Status: READY\n");
+      }
+      else if (ProcTable[i].status == BLOCKED)
+      {
+        console("Status: BLOCKED\n"); 
+      }
+      else console("Status: QUIT\n");
+
+      console("# of Children: %d\n", ProcTable[i].num_kids);
+      console("CPU time: %d ms\n", ProcTable[i].start_time); 
       console("-------------------\n");
       i++;
    }
    return;
-}
+}/* dump_processes */
+
 
 /* -------------------------------------------------------------------------------
-   insertRL() 
-   inserts entries into the ReadyList
+   Name - insertRL() 
+   Purpose - inserts entries into the ReadyList in appropriate order by priority
+   Parameters - a process pointer to a PCB block
+   Returns -  Nothing
    -------------------------------------------------------------------------------*/
 static void insertRL(proc_ptr proc)
 {
@@ -627,9 +693,12 @@ static void insertRL(proc_ptr proc)
    return;
 } /* insertRL */
 
+
 /* --------------------------------------------------------------------------------
-   removeFromRL()
-   removes entry from the ReadyList
+   Name - removeFromRL()
+   Purpose - removes entry from the ReadyList
+   Parameters - Accepts a PID of the process to be removed
+   Returns -  Nothing
    --------------------------------------------------------------------------------*/
 static void removeFromRL(int PID)
 {
@@ -664,13 +733,15 @@ static void removeFromRL(int PID)
       return;
    }
    return;
-}
+} /* removeFromRL */
 
 
 
 /* --------------------------------------------------------------------------------
-   printReadyList()
-   prints the Ready List contents for debug purposes
+   Name - printReadyList()
+   Purpose - prints the Ready List contents for debug purposes
+   Parameters - None
+   Returns - Nothing
    --------------------------------------------------------------------------------*/
 void printReadyList()
 {
@@ -684,12 +755,16 @@ void printReadyList()
       console("NULL\n");
    console("================================================================================\n");
    return;
-}
+} /*  printReadyList */
+
 
 /* ------------------------------------------------------------------------------------
    insertChild()
    inserts a child process into the list of parents/children/siblings
    maintains pointers and relationships
+   Parameters - Accepts a process pointer of the child to be inserted into the linked
+                list of children belonging to the parent
+   Returns -  Nothing
    ------------------------------------------------------------------------------------*/
 void insertChild(proc_ptr child)
 {
@@ -711,33 +786,46 @@ void insertChild(proc_ptr child)
    
    child->parent_ptr = Current;
    return;
-}
+} /* insertChild */
+
+
 
 /* -------------------------------------------------------------------------------
-   check_io()
-   Checks for input and output
-   Dummy function that returns 0 in phase1
+   Name - check_io()
+   Purpose - Checks for input and output
+            Dummy function that returns 0 in phase1
+   Parameters - None
+   Returns -  Nothing
    -------------------------------------------------------------------------------*/
 int check_io(void)
 {
    return 0;
-}
+} /* check_io */
 
-/*
-getpid()
-returns the pid of current process
-*/
+
+/* -------------------------------------------------------------------------------
+   Name - getpid()
+   Purpose - returns the pid of current process
+   Parameters - None
+   Returns -  The PID of the current running Process
+   -------------------------------------------------------------------------------*/
 int getpid(void)
 {
    return Current->pid;
-}
+} /* getpid */
 
-/*
-block_me()
-blocks the calling process
-new_status is value used to indicate status of the process in the dump_processes command
-new_status must be larger than 10; if not, USLOSS will halt with error message
-*/
+
+
+/* -------------------------------------------------------------------------------
+   Name - block_me()
+   Purpose - blocks the calling process
+             new_status is value used to indicate status of the process in the dump_processes command
+             new_status must be larger than 10; if not, USLOSS will halt with error message
+   Parameters - accepts the new-status value???
+   Returns -   
+               0 if block is successfull
+              -1 if current process is zapped while blocked
+   -------------------------------------------------------------------------------*/
 int block_me(int new_status)
 {
    if (new_status <= 10)
@@ -756,12 +844,20 @@ int block_me(int new_status)
    return 0;
 }
 
-/*
-unblock_proc()
-unblocks process with pid that had been blocked by calling block_me
-status is changed to READY and put into ReadyList
-dispatcher will be called as a side-effect
-*/
+/* -------------------------------------------------------------------------------
+   Name - unblock_proc()
+   Purpose - unblocks process with pid that had been blocked by calling block_me
+             status is changed to READY and put into ReadyList
+             dispatcher will be called as a side-effect
+   Parameters - accepts pid of process to be unblocked
+   Returns - 
+               -2 if the indicated process was not blocked, does not exist, is the Current process,
+                  or is blocked on a status less than or equal to 10.
+
+               -1 if the calling process was zapped
+
+               0 if unblock is sucessful
+   -------------------------------------------------------------------------------*/
 int unblock_proc(int pid)
 {
    if (Current->is_zapped == ZAPPED)
@@ -795,23 +891,31 @@ int unblock_proc(int pid)
    insertRL(&ProcTable[i]);
    dispatcher();
    return 0;
-}
+} /* unblock_proc */
 
-/*
-read_cur_start_time()
-returns the time (in microseconds) at which the current process 
-began its current time slice
-*/
+
+
+/* -------------------------------------------------------------------------------
+   Name - read_cur_start_time()
+   Purpose - returns the time (in microseconds) at which the current process 
+             began its current time slice
+   Parameters - None
+   Returns -  A time stamp of when process started its current time slice
+   -------------------------------------------------------------------------------*/
 int read_cur_start_time(void)
 {
    return (Current->start_time);
-}
+} /* read_cur_start_time */
 
-/*
-time_slice()
-calls the dispatcher if currently executing process has exceeded its time slice
-otherwise it simply returns
-*/
+
+
+/* -------------------------------------------------------------------------------
+   Name - time_slice()
+   Purpose - calls the dispatcher if currently executing process has exceeded its time slice
+             otherwise it simply returns
+   Parameters - None
+   Returns - Nothing
+   -------------------------------------------------------------------------------*/
 void time_slice(void)
 {
    if (readtime() >= 80)
@@ -819,15 +923,19 @@ void time_slice(void)
       dispatcher();
    }
    return;
-}
+} /* time_slice */
 
-/*
-readtime()
-returns CPU time (in milliseconds) used by the current process.
-*/
+
+
+/* -------------------------------------------------------------------------------
+   Name - readtime()
+   Purpose - returns CPU time (in milliseconds) used by the current process.
+   Parameters - None
+   Returns - CPU time used by current process
+   -------------------------------------------------------------------------------*/
 int readtime(void)
 {
    int time;
    time = (sys_clock() - Current->start_time) / 1000; // 1000 microseconds = 1 millisecond
    return time;
-}
+} /* read time */
