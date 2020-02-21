@@ -229,8 +229,8 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    insertRL(&ProcTable[proc_slot]);
 
    //debug stuff!!!! delete later maybe!!! print readylist!!!
-   printReadyList();
-   console("\n");
+   //printReadyList();
+   //console("\n");
 
    /* Initialize context for this process, but use launch function pointer for
     * the initial value of the process's program counter (PC)
@@ -377,7 +377,7 @@ void quit(int code)
       console("quit(): unblock %s who called join, insert to ready list\n", Current->parent_ptr->name);
       Current->parent_ptr->status = READY;
       insertRL(Current->parent_ptr);
-      printReadyList();
+      //printReadyList();
       Current->parent_ptr->num_kids --;   //Decrement kid counter of parent process
       console("\n");
    }
@@ -437,7 +437,7 @@ void dispatcher(void)
       next_process->status = RUNNING;
       removeFromRL(next_process->pid);
       console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
-      printReadyList();
+      //printReadyList();
       console("\n");
       old_process->pc_time = old_process->pc_time + readtime(); //get time spent in porcessor for old_process and update pc_time
       next_process->start_time = sys_clock(); //sets start_time in microseconds
@@ -453,7 +453,7 @@ void dispatcher(void)
       {
          old_process->status = READY;
          insertRL(old_process);
-         printReadyList();
+         //printReadyList();
          console("\n");
       }
 
