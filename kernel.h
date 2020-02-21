@@ -19,9 +19,11 @@ struct proc_struct {
    unsigned int   stacksize;
    int            status;            /* RUNNING, READY, BLOCKED, QUIT, etc. */
    int            is_zapped;         /* ZAPPED, NOT_ZAPPED */
+   proc_ptr       zapped_by_ptr;
+   proc_ptr       next_zapper_ptr;
    int            exit_code;         /* the exit code of process when it calls quit */
    int            blocked_status;    /* indicates how something was blocked */
-   int            start_time;        /* records the start time in milliseconds */
+   int            start_time;        /* records the start time in microseconds */
    int            num_kids;          /* keeps count of number of children process has */
    int            pc_time;           /* running total amount of  pc_time process has had in processor */
    /* other fields as needed... */

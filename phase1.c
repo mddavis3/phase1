@@ -32,6 +32,9 @@ int unblock_proc(int);
 int read_cur_start_time(void);
 void time_slice(void);
 int readtime(void);
+void insertZapList(proc_ptr);
+void dezappify(void);
+void clock_handler(int, void *);
 
 
 
@@ -55,10 +58,10 @@ proc_ptr Current;
 unsigned int next_pid = SENTINELPID;
 
 /* empty proc_struct */
-proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0};
+proc_struct DummyStruct = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0};
 
 /* define the variable for the interrupt vector declared by USLOSS */
-//void(*int_vec[NUM_INTS])(int dev, void * unit);
+void(*int_vec[NUM_INTS])(int dev, void * unit);
 
 
 
@@ -88,7 +91,7 @@ void startup()
    
 
    /* Initialize the clock interrupt handler */
-   //int_vec[CLOCK_DEV] = clock_handler;
+   int_vec[CLOCK_DEV] = clock_handler;
    
 
    /* startup a sentinel process */
@@ -293,13 +296,7 @@ void launch()
                   parent is removed from the ready list and blocked.
    ------------------------------------------------------------------------ */
 int join(int *code)
-{
-   //Process is zapped 
-   if (Current->is_zapped == ZAPPED)
-   {
-      return -1;
-   }
-
+{   
    //Process has no children
    if(Current->child_proc_ptr == NULL)
    {
@@ -312,6 +309,12 @@ int join(int *code)
    //current process blocked, dispatcher needs to be called
    console("join(): calling dispatcher\n");
    dispatcher();
+
+   //Process is zapped while waiting for child to quit
+   if (Current->is_zapped == ZAPPED)
+   {
+      return -1;
+   }
 
    //set exit code for child of parent calling join
    *code = Current->child_proc_ptr->exit_code;
@@ -365,9 +368,8 @@ void quit(int code)
    Current->status = QUIT;
    console("quit(): status of %s is %d (3 == QUIT)\n", Current->name, Current->status);
 
-   //cleanup PCB
-
-   //unblock processes that zapped this process ***TODO***
+   //unblock processes that zapped this process
+   dezappify();
 
    //unblock parent who called join
    if(Current->parent_ptr != NULL && Current->parent_ptr->status == BLOCKED)
@@ -409,10 +411,11 @@ void dispatcher(void)
 {
    //if current process still has highest priority the let it run.  
    //Assuming it hasn't exceeded its time limit.  ****For now time limit is left off****
-   if(Current != NULL && Current->priority <= ReadyList->priority && Current->status == RUNNING)//if true skip context switch
+   if(Current != NULL && Current->priority <= ReadyList->priority && Current->status == RUNNING && readtime() < 80)//if true skip context switch
    {
       return;
    }
+   
 
    proc_ptr next_process;
    proc_ptr old_process;
@@ -548,17 +551,20 @@ static void enableInterrupts()
 }  /*enableInterrupts*/
 
 
-/* ------------------------------------------------TODO---------------------------------
-   clock_handler function()
-   *void clock_handler(int dev, void *unit){
-   code inserted here
-   use SYSCLOCK to check current time (perhaps required here)   
+/* ---------------------------------------------------------------------------------
+   clock_handler()
+   will call timeslice() to check if current process has exceeded its time slice
+   if it has exceeded time slice, timeslice() calls dispatcher   
 }
    ---------------------------------------------------------------------------------*/
+void clock_handler(int dev, void *unit)
+{
+   time_slice();
+   return;
+} /* clock_handler */
 
 
-
-/* -------------------------------------------TODO--------------------------------------
+/* ---------------------------------------------------------------------------------
    Name - zap
    Purpose - a process arranges for another process to be killed by calling zap and
              specifying the PID of the victim
@@ -572,20 +578,28 @@ int zap(int pid)
 {
    int proc_slot = 0;
 
-  while (ProcTable[proc_slot].pid != pid)
+   while (ProcTable[proc_slot].pid != pid)
    {
       proc_slot++;
       if (proc_slot == MAXPROC)
       {
-         console("zap(): Tried to zap a process that does not exist");
+         console("zap(): Tried to zap a process that does not exist\n");
          halt(1);
       }
    }
+
+   if (ProcTable[proc_slot].pid == Current->pid)
+   {
+      console("zap(): Process tried to zap itself. Error.\n");
+      halt(1);
+   }
+
    //process to be zapped has been found and is_zapped is set to Zapped
    ProcTable[proc_slot].is_zapped == ZAPPED;
 
-   //***Considering creating yet another struct element in PCB called zapped_by that stores Null of a pid of process who did zapping maybe***
-
+   //Make the linked list of zappers to the zappee
+   insertZapList(&ProcTable[proc_slot]);
+   
    //This process called zap and now needs to be blocked
    Current->status == BLOCKED;
 
@@ -593,9 +607,19 @@ int zap(int pid)
    console("zap(): calling dispatcher\n");
    dispatcher();
 
+   //if the process was zapped while in zap function, return -1
+   if (Current->is_zapped == ZAPPED)
+   {
+      return -1;
+   }
+   //if the zapped process has called quit, return 0
+   if (ProcTable[proc_slot].status == QUIT)
+   {
+      return 0;
+   }
 
-   //***need to work on return values***
-   return -1;
+   //redundant just in case
+   return 0;
 }/* zap */
 
 
@@ -936,6 +960,73 @@ void time_slice(void)
 int readtime(void)
 {
    int time;
-   time = (sys_clock() - Current->start_time) / 1000; // 1000 microseconds = 1 millisecond
+   time = (sys_clock() - read_cur_start_time()) / 1000; // 1000 microseconds = 1 millisecond
    return time;
 } /* read time */
+
+
+
+/* --------------------------------------------------------------------------------
+   insertZapList()
+   configures correct pointers to all zappers
+   walks through next_zapper_ptr list
+   --------------------------------------------------------------------------------*/
+void insertZapList(proc_ptr zappee)
+{
+   proc_ptr walker;
+
+   if(zappee->zapped_by_ptr == NULL)
+   {
+      zappee->zapped_by_ptr = Current;
+   }
+   else
+   {
+      walker = zappee->zapped_by_ptr;
+      while(walker->next_zapper_ptr != NULL)
+      {
+         walker = walker->next_zapper_ptr;
+      }
+      walker->next_zapper_ptr = Current;
+   }
+   
+   return;
+} /* insertZapList */
+
+
+/* --------------------------------------------------------------------------
+   dezappify()
+   unblocks all of the zappers that zapped this process
+   --------------------------------------------------------------------------*/
+void dezappify(void)
+{
+   proc_ptr walker;
+   proc_ptr previous;
+   
+   if (Current->zapped_by_ptr == NULL)
+   {
+      return;
+   }
+   else
+   {
+      walker = Current->zapped_by_ptr;
+      Current->zapped_by_ptr = NULL;
+
+      while (walker->next_zapper_ptr != NULL)
+      {
+         //align pointers to their respective PCBs
+         previous = walker;
+         walker = walker->next_zapper_ptr;
+
+         //clean-up previous block in list
+         previous->next_zapper_ptr = NULL;
+         previous->status = READY;
+         insertRL(previous);
+      }
+
+      //clean-up walker block at the end of list
+      walker->status = READY;
+      insertRL(walker);
+
+      return;
+   }
+} /* dezappify */
