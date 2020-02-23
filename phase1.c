@@ -607,13 +607,15 @@ int zap(int pid)
    }
 
    //process to be zapped has been found and is_zapped is set to Zapped
-   ProcTable[proc_slot].is_zapped == ZAPPED;
+   console("process being zapped value b4 being zapped is %d", ProcTable[proc_slot].is_zapped);
+   ProcTable[proc_slot].is_zapped = ZAPPED;
+   console("process being zapped value AFTER being zapped is %d", ProcTable[proc_slot].is_zapped);
 
    //Make the linked list of zappers to the zappee
    insertZapList(&ProcTable[proc_slot]);
    
-   //This process called zap and now needs to be blocked
-   Current->status == BLOCKED;
+   //This process called zap and now needs to be blocked***check this code tomorrow
+   Current->status = BLOCKED;
 
    //current process blocked, dispatcher needs to be called
    console("zap(): calling dispatcher\n");
