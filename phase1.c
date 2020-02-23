@@ -623,6 +623,12 @@ int zap(int pid)
    //This process called zap and now needs to be blocked
    Current->status = BLOCKED;
 
+   //if the zapped process has called quit, return 0
+   if (ProcTable[proc_slot].status == QUIT)
+   {
+      return 0;
+   }
+   
    //current process blocked, dispatcher needs to be called
    console("zap(): calling dispatcher\n");
    dispatcher();
