@@ -180,6 +180,7 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
       proc_slot++;
       if (proc_slot == MAXPROC)
       {
+         console("nope not gonna happen");
          return -1;
       }
    }
@@ -300,8 +301,9 @@ void launch()
 int join(int *code)
 {   
    //Process has no children
-   if(Current->child_proc_ptr == NULL)
+   if(Current->child_proc_ptr == NULL || Current->num_kids == 0)  //***because of zombie blocks child_proc_ptr wasn't null when current proc had no kids.  add or kids == 0 to solve
    {
+      
       return -2;  
    }
 
@@ -319,7 +321,7 @@ int join(int *code)
    }
 
    //set exit code for child of parent calling join
-   *code = Current->child_proc_ptr->exit_code;
+   *code = Current->exit_code;   //this is the most recent child to quit's exit code.  It gets updated after each join
 
    //return the pid of the quitting child process that is joined on
    return Current->child_proc_ptr->pid;
@@ -338,6 +340,13 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
+
+   /* test if in kernel mode; halt if in user mode */
+   if ((PSR_CURRENT_MODE & psr_get()) == 0)
+   {
+      halt(1);
+   }
+
    //if the parent has active children, halt(1)
    console("quit(): checking for active children\n");
    if (Current->child_proc_ptr != NULL)
@@ -380,7 +389,6 @@ void quit(int code)
       Current->parent_ptr->status = READY;
       insertRL(Current->parent_ptr);
       //printReadyList();
-      Current->parent_ptr->num_kids --;   //Decrement kid counter of parent process
       console("\n");
    }
 
@@ -389,6 +397,7 @@ void quit(int code)
    {
       console("quit(): send exit_code to parent %s\n", Current->parent_ptr->name);
       Current->parent_ptr->exit_code = code;
+      Current->parent_ptr->num_kids --;   //moved this here to account for kid quiting if parent hasn't called join and is not blocked
    }
 
    //call dispatcher to switch to another process
@@ -411,13 +420,13 @@ void quit(int code)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
-   //if current process still has highest priority the let it run.  
-   //Assuming it hasn't exceeded its time limit.  ****For now time limit is left off****
+   //if current process still has highest priority then let it run.  
+   //Assuming it hasn't exceeded its time limit.  
    if(Current != NULL && Current->priority <= ReadyList->priority && Current->status == RUNNING && readtime() < 80)//if true skip context switch
    {
       return;
    }
-   
+
 
    proc_ptr next_process;
    proc_ptr old_process;
@@ -439,7 +448,7 @@ void dispatcher(void)
       next_process->status = RUNNING;
       removeFromRL(next_process->pid);
       console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
-      //printReadyList();
+      printReadyList();
       console("\n");
       old_process->pc_time = old_process->pc_time + readtime(); //get time spent in porcessor for old_process and update pc_time
       next_process->start_time = sys_clock(); //sets start_time in microseconds
@@ -455,11 +464,12 @@ void dispatcher(void)
       {
          old_process->status = READY;
          insertRL(old_process);
-         //printReadyList();
+         printReadyList();
          console("\n");
       }
 
       console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
+      printReadyList();
       old_process->pc_time = old_process->pc_time + readtime(); //get time spent in porcessor for old_process and update pc_time
       next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(&old_process->state, &next_process->state);
@@ -612,6 +622,7 @@ int zap(int pid)
    //if the process was zapped while in zap function, return -1
    if (Current->is_zapped == ZAPPED)
    {
+      console("zap(): This process was zapped while in the zap function");
       return -1;
    }
    //if the zapped process has called quit, return 0
@@ -679,6 +690,10 @@ void dump_processes()
       else if (ProcTable[i].status == BLOCKED)
       {
         console("Status: BLOCKED\n"); 
+      }
+      else if (ProcTable[i].status == RUNNING)
+      {
+         console("Status: RUNNING\n");
       }
       else console("Status: QUIT\n");
 

@@ -14,6 +14,7 @@ int start1(char *arg)
 
   pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
   printf("start1(): after fork of child %d\n", pid1);
+  printf("start1(): is quitting before child quits.  Error! Active child = PASS_TEST");
   quit(0);
   return 0; /* so gcc will not complain about its absence... */
 }

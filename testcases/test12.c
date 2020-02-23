@@ -30,6 +30,7 @@ int XXp1(char *arg)
   printf("XXp1(): arg = `%s'\n", arg);
   for(i = 0; i < 100; i++)
     ;
+  printf("XXp1(): If trap then quit checked for kernal mode and is PASS\n");
   psr_set( psr_get() & ~PSR_CURRENT_MODE );
   quit(-3);
   return 0;

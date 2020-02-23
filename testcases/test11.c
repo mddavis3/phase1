@@ -11,7 +11,6 @@ int start1(char *arg)
 {
   int status, pid1, kidpid;
   printf("start1(): started\n");
-
   psr_set( psr_get() & ~PSR_CURRENT_MODE );
   pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
   printf("start1(): after fork of child %d\n", pid1);
