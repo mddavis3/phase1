@@ -18,7 +18,7 @@ int start1(char *arg)
          printf("start1(): after fork of child %d\n", kidpid);
       }
 
-      dump_processes();
+      //dump_processes();
 
       for (i = 2; i < MAXPROC; i++) {
          kidpid = join (&status);

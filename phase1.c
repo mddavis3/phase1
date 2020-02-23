@@ -113,7 +113,7 @@ void startup()
       halt(1);
    }
 
-   dump_processes();
+   //dump_processes();
    console("startup(): Should not see this message! ");
    console("Returned from fork1 call that created start1\n");
 
@@ -131,8 +131,9 @@ void finish()
 {
    if (DEBUG && debugflag)
       console("in finish...\n");
-      console("\n\n\n");
-      console("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+      //console("\n\n\n");
+      //console("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+   console("All processes complete.\n");
 } /* finish */
 
 /* ------------------------------------------------------------------------
@@ -180,7 +181,7 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
       proc_slot++;
       if (proc_slot == MAXPROC)
       {
-         console("nope not gonna happen");
+         //console("nope not gonna happen");
          return -1;
       }
    }
@@ -216,6 +217,11 @@ int fork1(char *name, int(*f)(char *), char *arg, int stacksize, int priority)
    ProcTable[proc_slot].pid = next_pid++;
 
    /* process priority */
+   if (priority < HIGHEST_PRIORITY || priority > LOWEST_PRIORITY)
+   {
+      //return -1 if priority is out of bounds
+      return (-1);
+   }
    ProcTable[proc_slot].priority = priority;
 
    /* process status (READY by default) */
@@ -311,7 +317,7 @@ int join(int *code)
    Current->status = BLOCKED;
 
    //current process blocked, dispatcher needs to be called
-   console("join(): calling dispatcher\n");
+   //console("join(): calling dispatcher\n");
    dispatcher();
 
    //Process is zapped while waiting for child to quit
@@ -348,7 +354,7 @@ void quit(int code)
    }
 
    //if the parent has active children, halt(1)
-   console("quit(): checking for active children\n");
+   //console("quit(): checking for active children\n");
    if (Current->child_proc_ptr != NULL)
    {
       proc_ptr walker = Current->child_proc_ptr;
@@ -375,9 +381,9 @@ void quit(int code)
 
 
    //set status to QUIT
-   console("quit(): change status to QUIT\n");
+   //console("quit(): change status to QUIT\n");
    Current->status = QUIT;
-   console("quit(): status of %s is %d (3 == QUIT)\n", Current->name, Current->status);
+   //console("quit(): status of %s is %d (3 == QUIT)\n", Current->name, Current->status);
 
    //unblock processes that zapped this process
    dezappify();
@@ -385,7 +391,7 @@ void quit(int code)
    //unblock parent who called join
    if(Current->parent_ptr != NULL && Current->parent_ptr->status == BLOCKED)
    {
-      console("quit(): unblock %s who called join, insert to ready list\n", Current->parent_ptr->name);
+      //console("quit(): unblock %s who called join, insert to ready list\n", Current->parent_ptr->name);
       Current->parent_ptr->status = READY;
       insertRL(Current->parent_ptr);
       //printReadyList();
@@ -395,13 +401,13 @@ void quit(int code)
    //send quit code to the parent process exit_code PCB entry
    if(Current->parent_ptr != NULL)
    {
-      console("quit(): send exit_code to parent %s\n", Current->parent_ptr->name);
+      //console("quit(): send exit_code to parent %s\n", Current->parent_ptr->name);
       Current->parent_ptr->exit_code = code;
       Current->parent_ptr->num_kids --;   //moved this here to account for kid quiting if parent hasn't called join and is not blocked
    }
 
    //call dispatcher to switch to another process
-   console("quit(): call dispatcher\n");
+   //console("quit(): call dispatcher\n");
    dispatcher();
 
    p1_quit(Current->pid);
@@ -417,6 +423,8 @@ void quit(int code)
    Parameters - none
    Returns - nothing
    Side Effects - the context of the machine is changed
+   NOTE TO DEVELOPERS - THE RUNNING PROCESS IS NOT IN THE READY LIST WHEN 
+   THIS IS CALLED
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
@@ -439,7 +447,7 @@ void dispatcher(void)
    {
       next_process->status = RUNNING;
       removeFromRL(next_process->pid);
-      console("dispatcher(): context_switch to %s\n", next_process->name);
+      //console("dispatcher(): context_switch to %s\n", next_process->name);
       next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(NULL, &next_process->state);
    }
@@ -447,9 +455,9 @@ void dispatcher(void)
    {
       next_process->status = RUNNING;
       removeFromRL(next_process->pid);
-      console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
-      printReadyList();
-      console("\n");
+      //console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
+      //printReadyList();
+      //console("\n");
       old_process->pc_time = old_process->pc_time + readtime(); //get time spent in porcessor for old_process and update pc_time
       next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(&old_process->state, &next_process->state);
@@ -464,12 +472,12 @@ void dispatcher(void)
       {
          old_process->status = READY;
          insertRL(old_process);
-         printReadyList();
+         //printReadyList();
          console("\n");
       }
 
-      console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
-      printReadyList();
+      //console("dispatcher(): context_switch from %s to %s\n", old_process->name, next_process->name);
+      //printReadyList();
       old_process->pc_time = old_process->pc_time + readtime(); //get time spent in porcessor for old_process and update pc_time
       next_process->start_time = sys_clock(); //sets start_time in microseconds
       context_switch(&old_process->state, &next_process->state);
@@ -521,7 +529,7 @@ static void check_deadlock()
          if (ProcTable[i].pid != SENTINELPID && ProcTable[i].status != QUIT)
          {
             console("sentinel(): active processes besides sentinel, halt(1)\n");
-            console("sentinel(): status of active process %s is %d\n", ProcTable[i].name, ProcTable[i].status);
+            //console("sentinel(): status of active process %s is %d\n", ProcTable[i].name, ProcTable[i].status);
             halt(1);
          }
       }
@@ -607,13 +615,13 @@ int zap(int pid)
    }
 
    //process to be zapped has been found and is_zapped is set to Zapped
-   ProcTable[proc_slot].is_zapped == ZAPPED;
+   ProcTable[proc_slot].is_zapped = ZAPPED;
 
    //Make the linked list of zappers to the zappee
    insertZapList(&ProcTable[proc_slot]);
    
    //This process called zap and now needs to be blocked
-   Current->status == BLOCKED;
+   Current->status = BLOCKED;
 
    //current process blocked, dispatcher needs to be called
    console("zap(): calling dispatcher\n");
