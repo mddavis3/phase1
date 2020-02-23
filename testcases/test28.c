@@ -5,7 +5,7 @@
 /*
  * The purpose of this test is to test when we join and our children have
  * already quit.  One will be done where we have been zapped before calling
- * join, one will be done where we have not bee zapped before calling join.
+ * join, one will be done where we have not been zapped before calling join.
  * Possible expected output 
  * start1(): started
  * start1(): after fork of child 3

@@ -246,8 +246,8 @@ Process name: sentinel, Priority: 6-->NULL
 ================================================================================
 
 XXp1(): fork1 of second child returned pid = 5
-XXp1(): first join returned kid_pid = -2, status = 99344288
-XXp1(): second join returned kid_pid = -2, status = 99344288
+XXp1(): first join returned kid_pid = -2, status = 182402976
+XXp1(): second join returned kid_pid = -2, status = 182402976
 quit(): checking for active children
 quit(): change status to QUIT
 quit(): status of XXp1 is 3 (3 == QUIT)
@@ -2819,7 +2819,7 @@ PID: 5
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 20026 ms
+CPU time: 30034 ms
 -------------------
 ProcTable entry 5:
 Name: XXp1
@@ -6136,7 +6136,7 @@ PID: 2
 Parent PID: N/A
 Status: BLOCKED
 # of Children: 1
-CPU time: 30019 ms
+CPU time: 20012 ms
 -------------------
 ProcTable entry 2:
 Name: XXp1
@@ -6160,7 +6160,7 @@ PID: 5
 Parent PID: 2
 Status: RUNNING
 # of Children: 0
-CPU time: 30034 ms
+CPU time: 20026 ms
 -------------------
 
 ==============================dump_processes====================================
@@ -6178,7 +6178,7 @@ PID: 2
 Parent PID: N/A
 Status: BLOCKED
 # of Children: 1
-CPU time: 30019 ms
+CPU time: 20012 ms
 -------------------
 ProcTable entry 2:
 Name: XXp1
@@ -6202,7 +6202,7 @@ PID: 5
 Parent PID: 2
 Status: RUNNING
 # of Children: 0
-CPU time: 30034 ms
+CPU time: 20026 ms
 -------------------
 
 ==============================dump_processes====================================
@@ -6220,7 +6220,7 @@ PID: 2
 Parent PID: N/A
 Status: BLOCKED
 # of Children: 1
-CPU time: 30019 ms
+CPU time: 20012 ms
 -------------------
 ProcTable entry 2:
 Name: XXp1
@@ -6244,7 +6244,7 @@ PID: 5
 Parent PID: 2
 Status: RUNNING
 # of Children: 0
-CPU time: 30034 ms
+CPU time: 20026 ms
 -------------------
 XXp1(): exitting, pid = 5
 quit(): checking for active children
@@ -6367,7 +6367,7 @@ PID: 5
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 30034 ms
+CPU time: 20026 ms
 -------------------
 ProcTable entry 5:
 Name: XXp1
@@ -6375,7 +6375,7 @@ PID: 6
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 50061 ms
+CPU time: 40054 ms
 -------------------
 ProcTable entry 6:
 Name: XXp1
@@ -6383,7 +6383,7 @@ PID: 7
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 60030 ms
+CPU time: 50037 ms
 -------------------
 ProcTable entry 7:
 Name: XXp1
@@ -6433,7 +6433,7 @@ PID: 5
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 30034 ms
+CPU time: 20026 ms
 -------------------
 ProcTable entry 5:
 Name: XXp1
@@ -6441,7 +6441,7 @@ PID: 6
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 50061 ms
+CPU time: 40054 ms
 -------------------
 ProcTable entry 6:
 Name: XXp1
@@ -6449,7 +6449,7 @@ PID: 7
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 60030 ms
+CPU time: 50037 ms
 -------------------
 ProcTable entry 7:
 Name: XXp1
@@ -6499,7 +6499,7 @@ PID: 5
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 30034 ms
+CPU time: 20026 ms
 -------------------
 ProcTable entry 5:
 Name: XXp1
@@ -6507,7 +6507,7 @@ PID: 6
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 50061 ms
+CPU time: 40054 ms
 -------------------
 ProcTable entry 6:
 Name: XXp1
@@ -6515,7 +6515,7 @@ PID: 7
 Parent PID: 2
 Status: QUIT
 # of Children: 0
-CPU time: 60030 ms
+CPU time: 50037 ms
 -------------------
 ProcTable entry 7:
 Name: XXp1
